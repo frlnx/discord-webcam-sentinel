@@ -53,8 +53,8 @@ class Bot(discord.Client):
             print('No webcam found')
             await self.close()
             exit(1)
-        self.chaoslynx_user = await self.fetch_user(self.user_id)
-        if self.chaoslynx_user is None:
+        self.notification_user = await self.fetch_user(self.user_id)
+        if self.notification_user is None:
             print('Failed to find user')
         self.monitor.start()
         print('Bot is ready')
@@ -63,7 +63,7 @@ class Bot(discord.Client):
         assert isinstance(self.caps, list)
         for i in range(len(self.caps)):
             file_path = f'last_frame_{i}.png'
-            await self.chaoslynx_user.send(file=discord.File(file_path))
+            await self.notification_user.send(file=discord.File(file_path))
 
     async def on_message(self, message):
         if message.author == self.user:
