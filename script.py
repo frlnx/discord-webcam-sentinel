@@ -51,6 +51,8 @@ class Bot(discord.Client):
         self.caps = [cap for cap in caps if cap.isOpened()]
         if not self.caps:
             print('No webcam found')
+            await self.close()
+            exit(1)
         self.chaoslynx_user = await self.fetch_user(self.user_id)
         if self.chaoslynx_user is None:
             print('Failed to find user')
