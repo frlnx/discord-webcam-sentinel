@@ -2,6 +2,7 @@ import asyncio
 
 import discord
 from discord.ext import tasks
+from discord.errors import DiscordServerError
 from cv2 import VideoCapture, imwrite, imread
 
 
@@ -10,11 +11,11 @@ class Bot(discord.Client):
     async def monitor(self):
         if await self.movement():
             print('Movement detected!')
+            await self.send_images_to_discord()
             await self.save_latest_frames_from_webcam()
             await self.send_images_to_discord()
         else:
-            print('No movement detected')
-        await self.save_latest_frames_from_webcam()
+            await self.save_latest_frames_from_webcam()
 
     async def save_latest_frames_from_webcam(self):
         for i, cap in enumerate(self.caps):
@@ -34,7 +35,6 @@ class Bot(discord.Client):
             if last_frame is None:
                 return True
             diff = self.compare_frames(frame, last_frame)
-            print(f'Difference {i}: {diff}')
             if diff < 0.1:
                 return True
         return False
@@ -52,7 +52,6 @@ class Bot(discord.Client):
         if not self.caps:
             print('No webcam found')
             await self.close()
-            exit(1)
         self.notification_user = await self.fetch_user(self.user_id)
         if self.notification_user is None:
             print('Failed to find user')
@@ -63,15 +62,27 @@ class Bot(discord.Client):
         assert isinstance(self.caps, list)
         for i in range(len(self.caps)):
             file_path = f'last_frame_{i}.png'
-            await self.notification_user.send(file=discord.File(file_path))
+            try:
+                await self.notification_user.send(file=discord.File(file_path))
+            except DiscordServerError as e:
+                print(f'Failed to send image: {e}')
 
     async def on_message(self, message):
-        if message.author == self.user:
+        if message.author != self.notification_user:
             return
         if message.content == 'ping':
             await message.channel.send('pong')
+        if message.content == 'shutdown':
+            await self.close()
         if message.content == 'show':
             await self.send_images_to_discord()
+
+    async def close(self):
+        self.monitor.cancel()
+        await super().close()
+        for cap in self.caps:
+            cap.release()
+        exit(0)
 
 def main(**kwargs):
     token = kwargs.get('token')
