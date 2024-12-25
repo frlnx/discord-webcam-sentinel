@@ -9,13 +9,10 @@ from cv2 import VideoCapture, imwrite, imread
 class Bot(discord.Client):
     @tasks.loop(seconds=1)
     async def monitor(self):
-        if await self.movement():
+        if await self.any_movement():
             print('Movement detected!')
             await self.send_images_to_discord()
-            await self.save_latest_frames_from_webcam()
-            await self.send_images_to_discord()
-        else:
-            await self.save_latest_frames_from_webcam()
+        await self.save_latest_frames_from_webcam()
 
     async def save_latest_frames_from_webcam(self):
         for i, cap in enumerate(self.caps):
@@ -23,21 +20,29 @@ class Bot(discord.Client):
             ret, frame = cap.read()
             if not ret:
                 continue
-            imwrite(output_file, frame)
+            self.save_frame(output_file, frame)
 
-    async def movement(self) -> bool:
+    def save_frame(self, output_file, frame):
+        imwrite(output_file, frame)
+
+    async def any_movement(self) -> bool:
         for i, cap in enumerate(self.caps):
-            last_frame_file = f'last_frame_{i}.png'
-            ret, frame = cap.read()
-            if not ret:
-                return False
-            last_frame = imread(last_frame_file)
-            if last_frame is None:
-                return True
-            diff = self.compare_frames(frame, last_frame)
-            if diff < 0.1:
+            if await self.movement(cap, i):
                 return True
         return False
+
+    async def movement(self, cap: VideoCapture, i: int) -> bool:
+        last_frame_file = f'last_frame_{i}.png'
+        ret, frame = cap.read()
+        if not ret:
+            return False
+        last_frame = imread(last_frame_file)
+        if last_frame is None:
+            return False
+        diff = self.compare_frames(frame, last_frame)
+        if diff < 0.1:
+            self.save_frame(f'current_frame_{i}.png', frame)
+            return True
 
     @staticmethod
     def compare_frames(frame1, frame2) -> float:
@@ -61,11 +66,12 @@ class Bot(discord.Client):
     async def send_images_to_discord(self):
         assert isinstance(self.caps, list)
         for i in range(len(self.caps)):
-            file_path = f'last_frame_{i}.png'
-            try:
-                await self.notification_user.send(file=discord.File(file_path))
-            except DiscordServerError as e:
-                print(f'Failed to send image: {e}')
+            for filename in ['current_frame', 'last_frame']:
+                file_path = f'{filename}_{i}.png'
+                try:
+                    await self.notification_user.send(file=discord.File(file_path))
+                except DiscordServerError as e:
+                    print(f'Failed to send image: {e}')
 
     async def on_message(self, message):
         if message.author != self.notification_user:
