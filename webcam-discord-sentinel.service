@@ -1,0 +1,14 @@
+[Unit]
+Description=https://github.com/frlnx/webcam-discord-sentinel
+After=network.target
+
+[Service]
+Type=idle
+ExecStart=./start.sh
+WorkingDirectory={pwd}
+Restart=always
+RestartSec=60
+RestartMode=on-failure
+
+[Install]
+WantedBy=multi-user.target
